@@ -1,4 +1,4 @@
-from src.core.core import simple_chat
+from src.core.core import simple_stream_chat
 from openai import OpenAI
 import streamlit as st
 import os
@@ -35,8 +35,11 @@ if prompt := st.chat_input("输入你的消息..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # 简单自动回复
-    response = simple_chat(client, prompt)
-    st.session_state.messages.append({"role": "assistant", "content": response})
     with st.chat_message("assistant"):
-        st.markdown(response)
+        response = st.write_stream(
+            simple_stream_chat(
+                client, list(st.session_state.messages)
+            )  # 防止传输时被修改
+        )
+
+    st.session_state.messages.append({"role": "assistant", "content": response})
