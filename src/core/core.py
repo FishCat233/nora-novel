@@ -1,3 +1,4 @@
+import logging
 from typing import Iterable
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
@@ -22,3 +23,15 @@ def simple_stream_chat(c: OpenAI, messages: Iterable[ChatCompletionMessageParam]
         delta = chunk.choices[0].delta.content
         if delta:
             yield delta
+
+
+def new_simple_stream_chat(c: OpenAI, inputs) -> Iterable:
+    stream_response = c.responses.create(
+        model="deepseek-ai/DeepSeek-V3.2", input=inputs, stream=True
+    )
+
+    for event in stream_response:
+        if event.type == "response.output_text.delta":
+            yield event.delta
+        else:
+            logging.debug(f"unexpected event: {event}")
