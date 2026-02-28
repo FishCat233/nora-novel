@@ -1,10 +1,10 @@
 import logging
 import json
-from typing import Optional
+from typing import Optional, Callable
 
 from openai import OpenAI
 
-from .tools import Tool, tools
+from .tools import Tool, tools, tool_meta
 from .types import ChatMessage, CustomMessage
 
 
@@ -16,20 +16,23 @@ class NoraAgent:
         self.client: OpenAI = client
         self.messages: list[ChatMessage] = inital_message
 
-    def chat(self, prompt: str) -> Optional[ChatMessage]:
+    def chat(
+        self, prompt: str, human_callback: Optional[Callable] = None
+    ) -> Optional[ChatMessage]:
         """
         进行 ReAct 对话，解决用户的问题。
 
         会话过程中会记录 message
         Args:
             prompt: 提示词
+            human_callback: 回调函数，在需要用户参与 loop 时调用。
 
         Returns: 最终回复
         """
         self.messages.append(CustomMessage(role="user", content=prompt))
 
         for _ in range(10):
-            message = self.single_step()
+            message = self._single_step()
 
             # 把 assistant 消息加入历史
             self.messages.append(message)
@@ -41,10 +44,24 @@ class NoraAgent:
             for tool_call in message.tool_calls:
                 name = tool_call.function.name
                 args = json.loads(tool_call.function.arguments)
-                result = Tool.dispatch(name, args)
+
+                if tool_meta[name]["type"] == "human_callback":
+                    # 如果是 human_callback 类型的工具
+                    if not human_callback:
+                        logging.error("没有提供人类回调函数.")
+                        return None
+
+                    result = human_callback(name, args)
+                else:
+                    # 如果是 function 类型的工具
+                    result = Tool.dispatch(name, args)
+
                 self.messages.append(
                     CustomMessage(
-                        role="tool", content=str(result), tool_call_id=tool_call.id
+                        role="tool",
+                        content=str(result),
+                        tool_call_id=tool_call.id,
+                        tool_call_name=tool_call.function.name,
                     )
                 )
 
@@ -52,7 +69,52 @@ class NoraAgent:
 
         return None
 
-    def single_step(self):
+    def step(self, prompt=None):
+        """
+        单步运行 agent
+        Args:
+            prompt:
+
+        Returns: "finished" 表示不调用工具（结束回答），否则为调用的工具名
+
+        """
+
+        if prompt:
+            self.messages.append(CustomMessage(role="user", content=prompt))
+
+        message = self._single_step()
+
+        # 把 assistant 消息加入历史
+        self.messages.append(message)
+
+        if not message.tool_calls:
+            return "finished"
+
+        return message.tool_calls
+
+    def use_tool_call(self, tool_call) -> None:
+        """
+        使用工具完成 tool_call，并将结果加入到 messages 中
+        Args:
+            tool_call: tool_call
+
+        Returns: None
+        """
+        name = tool_call.function.name
+        args = json.loads(tool_call.function.arguments)
+
+        result = Tool.dispatch(name, args)
+
+        self.messages.append(
+            CustomMessage(
+                role="tool",
+                content=str(result),
+                tool_call_id=tool_call.id,
+                tool_call_name=tool_call.function.name,
+            )
+        )
+
+    def _single_step(self):
         """
         进行单步对话。
         Args:

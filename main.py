@@ -21,6 +21,9 @@ client: OpenAI = OpenAI(
 if "agent" not in st.session_state:
     st.session_state.agent = NoraAgent(client)
 
+if "pending_tool_call" not in st.session_state:
+    st.session_state.pending_tool_call = None
+
 ## ======== Page =======
 
 view = view.MainView()

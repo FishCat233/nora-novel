@@ -10,3 +10,4 @@ class CustomMessage(BaseModel):
     role: str
     content: Optional[str] = ""
     tool_call_id: Optional[str] = None
+    tool_call_name: Optional[str] = None
