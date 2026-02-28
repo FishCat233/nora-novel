@@ -40,6 +40,13 @@ class ListWikiPagesParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class UpdateWikiPageParams(BaseModel):
+    path: str
+    content: str
+    append: bool = False
+    model_config = ConfigDict(extra="forbid")
+
+
 tool_registry = {}
 tools = []
 
@@ -116,7 +123,7 @@ class Tool:
     @staticmethod
     @register_tool(SearchWikiParams)
     def search_wiki(
-        query: str, in_content: bool = False, recursive: bool = False
+        query: str, in_content: bool = False, recursive: bool = True
     ) -> dict[str, str]:
         """
         搜索用户小说 Wiki 中的条目，以获得更多信息。
@@ -155,3 +162,16 @@ class Tool:
         Returns: 条目路径列表
         """
         return Wiki.list_wiki_pages()
+
+    @staticmethod
+    @register_tool(UpdateWikiPageParams)
+    def update_wiki_page(path: str, content: str, append: bool = False) -> str:
+        """
+        更新指定路径的条目内容。如果条目不存在则会创建条目。
+        Args:
+            path: Wiki 条目路径（带扩展名 .md / .txt）
+            content: 新内容
+            append: 是否是追加内容，如果是否，则新内容会直接覆盖原有内容
+        Returns: 执行结果 (str)
+        """
+        return Wiki.update_wiki_page(path, content, append)

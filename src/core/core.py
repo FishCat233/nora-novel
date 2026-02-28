@@ -126,7 +126,8 @@ class NoraAgent:
             model="deepseek-ai/DeepSeek-V3.2",
             messages=self.messages,
             tools=tools,
-            max_tokens=2048,
+            max_tokens=4096,
+            extra_body={"thinking_budget": 1024},
         )
 
         return response.choices[0].message

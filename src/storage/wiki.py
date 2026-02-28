@@ -107,6 +107,33 @@ class Wiki:
         paths = Wiki.search_wiki("", in_content=False, recursive=True)
         return [path.replace(os.sep, "::") for path in paths]
 
+    @staticmethod
+    def update_wiki_page(path: str, content: str, append: bool = False) -> str:
+        """
+        更新指定路径的条目内容
+        Args:
+            path: Wiki 条目路径
+            content: 新内容
+            append: 是否是追加内容
+        Returns: str
+        """
+        path = path.replace("::", os.sep)
+        full_path = os.path.join(Wiki.data_path, path)
+
+        parent_dir = os.path.dirname(full_path)
+
+        try:
+            if not os.path.exists(parent_dir):
+                os.makedirs(parent_dir, exist_ok=True)
+
+            mode = "a" if append else "w"
+            with open(full_path, mode, encoding="utf-8") as f:
+                f.write(content)
+
+            return f"成功更新页面: {path}"
+        except Exception as e:
+            return f"更新失败: {str(e)}"
+
 
 if __name__ == "__main__":
     print(Wiki.get_wiki_page_by_title("哈基米::编制者.md"))

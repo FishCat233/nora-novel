@@ -93,6 +93,34 @@ class MainView(IView):
                     tool_calls.pop(0)
                     st.rerun()
                 return
+            elif name == "update_wiki_page":
+                # 修改条目前跟用户确认
+                st.warning(f"⚠️ Agent 请求修改维基页面: **{args.get('path')}**")
+                st.code(args.get("content"), language="markdown")  # 显示修改内容
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(
+                        "确认修改", key=f"confirm_{tool_call.id}", type="primary"
+                    ):
+                        # 执行实际的修改逻辑
+                        result = self.agent.use_tool_call(tool_call)
+                        tool_calls.pop(0)
+                        st.rerun()
+                with col2:
+                    if st.button("拒绝修改", key=f"deny_{tool_call.id}"):
+                        # 告诉 Agent 用户拒绝了
+                        self.agent.messages.append(
+                            CustomMessage(
+                                role="tool",
+                                content="ERROR: 用户拒绝了修改",
+                                tool_call_id=tool_call.id,
+                                tool_call_name=tool_call.function.name,
+                            )
+                        )
+                        tool_calls.pop(0)
+                        st.rerun()
+                return  # 必须 Return，等待用户点击按钮
             else:
                 # 调用工具
                 self.agent.use_tool_call(tool_call)
