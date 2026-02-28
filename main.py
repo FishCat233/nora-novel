@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import src.view as view
 import logging
 
+from src.core.pipeline_tool import PIPELINE
 from src.core.core import NoraAgent
 from src.storage.wiki import Wiki
 
@@ -19,14 +20,22 @@ client: OpenAI = OpenAI(
     base_url="https://api.siliconflow.cn/v1",
 )
 
+if "current_module_id" not in st.session_state:
+    st.session_state.current_module_id = "common_helper"
+
 if "agent" not in st.session_state:
-    st.session_state.agent = NoraAgent(client)
+    default_modeule = PIPELINE["common_helper"]
+    st.session_state.agent = NoraAgent(
+        client, system_prompt=default_modeule.system_prompt
+    ).setup_pipeline(default_modeule)
 
 if "wiki" not in st.session_state:
     st.session_state.wiki = Wiki.get_instance()
 
 if "pending_tool_call" not in st.session_state:
     st.session_state.pending_tool_call = []
+
+st.set_page_config(page_title="Nora Novel", page_icon="✒️")
 
 ## ======== Page =======
 

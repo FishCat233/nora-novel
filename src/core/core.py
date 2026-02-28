@@ -4,17 +4,41 @@ from typing import Optional, Callable
 
 from openai import OpenAI
 
+from .pipeline_tool import PipelineTool
 from .tools import Tool, tools
 from .types import ChatMessage, CustomMessage
 
 
 class NoraAgent:
-    def __init__(self, client: OpenAI, inital_message=None):
+    def __init__(self, client: OpenAI, system_prompt=None, inital_message=None):
         if inital_message is None:
             inital_message = []
 
         self.client: OpenAI = client
-        self.messages: list[ChatMessage] = inital_message
+        self.system_prompt = system_prompt
+        self.messages: list[ChatMessage] = [
+            CustomMessage(role="system", content=self.system_prompt)
+        ] + inital_message
+        self.allow_tools = None
+
+    def setup_pipeline(self, pipeline: PipelineTool) -> "NoraAgent":
+        self.system_prompt = pipeline.system_prompt
+
+        has_system_prompt = False
+        for message in self.messages:
+            if message.role == "system":
+                has_system_prompt = True
+                message.content = self.system_prompt
+        if not has_system_prompt:
+            self.messages.insert(
+                0, CustomMessage(role="system", content=self.system_prompt)
+            )
+
+        self.allow_tools = [
+            t for t in tools if t["function"]["name"] in pipeline.allowed_tools
+        ]
+
+        return self
 
     def chat(
         self, prompt: str, human_callback: Optional[Callable] = None
@@ -31,7 +55,7 @@ class NoraAgent:
         """
         self.messages.append(CustomMessage(role="user", content=prompt))
 
-        for _ in range(10):
+        for _ in range(15):
             message = self._single_step()
 
             # 把 assistant 消息加入历史
@@ -125,7 +149,9 @@ class NoraAgent:
         response = self.client.chat.completions.create(
             model="deepseek-ai/DeepSeek-V3.2",
             messages=self.messages,
-            tools=tools,
+            tools=self.allow_tools
+            if self.allow_tools
+            else tools,  # 如果没有限制工具，则默认可以使用所有工具
             max_tokens=4096,
             extra_body={"thinking_budget": 1024},
         )
