@@ -131,37 +131,3 @@ class NoraAgent:
         )
 
         return response.choices[0].message
-
-
-def simple_chat(c: OpenAI, question: str) -> list:
-    response = c.chat.completions.create(
-        model="deepseek-ai/DeepSeek-V3.2",
-        messages=[{"role": "user", "content": question}],
-        tools=tools,
-        max_tokens=1024,
-    )
-
-    for tool_call in response.choices[0].message.tool_calls or []:
-        if tool_call.function.name == "get_current_time":
-            args = json.load(tool_call.function.arguments)
-            result = Tool.get_current_time(args["time_format"])
-
-    return response.choices[0].message.content
-
-
-def simple_stream_chat(c: OpenAI, messages):
-    stream = c.chat.completions.create(
-        model="deepseek-ai/DeepSeek-V3.2",
-        messages=messages,
-        tools=tools,
-        max_tokens=1024,
-        stream=True,
-    )
-
-    for chunk in stream:
-        if not chunk.choices:
-            continue
-        if chunk.choices[0].delta.content:
-            yield chunk.choices[0].delta.content
-        # if chunk.choices[0].delta.reasoning_content:
-        #     yield chunk.choices[0].delta.reasoning_content
