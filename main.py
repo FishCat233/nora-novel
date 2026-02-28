@@ -1,10 +1,11 @@
-from src.core.core import simple_stream_chat
-from openai import OpenAI
 import streamlit as st
+from openai import OpenAI
 import os
 from dotenv import load_dotenv
 import src.view as view
 import logging
+
+from src.core.core import NoraAgent
 
 load_dotenv()
 
@@ -17,8 +18,11 @@ client: OpenAI = OpenAI(
     base_url="https://api.siliconflow.cn/v1",
 )
 
+if "agent" not in st.session_state:
+    st.session_state.agent = NoraAgent(client)
+
 ## ======== Page =======
 
-view = view.MainView(client)
+view = view.MainView()
 
 view.display()
