@@ -51,7 +51,7 @@ class MainView(IView):
     def chat_input(self):
         """输入框"""
         # 如果在等待工具回复
-        if st.session_state.pending_tool_call:
+        if len(st.session_state.pending_tool_call) > 0:
             self.handle_pending_tool_call()
 
         # 如果在等待用户会话
@@ -64,38 +64,45 @@ class MainView(IView):
             # agent 调用工具
             if isinstance(result, list):
                 for tool_call in result:
-                    st.session_state.pending_tool_call = tool_call
+                    st.session_state.pending_tool_call.append(tool_call)
 
             st.rerun()
 
     def handle_pending_tool_call(self):
-        tool_call = st.session_state.pending_tool_call
+        while st.session_state.pending_tool_call:
+            tool_calls: list = st.session_state.pending_tool_call
 
-        name = st.session_state.pending_tool_call.function.name
-        args = json.loads(st.session_state.pending_tool_call.function.arguments)
+            tool_call = tool_calls[0]
 
-        # 如果需要 ui 则先调用 ui
-        if name == "ask_user":
-            prompt = args["prompt"]
-            answer = st.text_input(prompt)
-            if answer:
-                self.agent.messages.append(
-                    CustomMessage(
-                        role="tool",
-                        content=answer,
-                        tool_call_id=tool_call.id,
-                        tool_call_name=tool_call.function.name,
+            name = tool_call.function.name
+            args = json.loads(tool_call.function.arguments)
+
+            # 如果需要 ui 则先调用 ui
+            if name == "ask_user":
+                prompt = args["prompt"]
+                answer = st.text_input(prompt, key=f"tool_{tool_call.id}")
+                if answer:
+                    self.agent.messages.append(
+                        CustomMessage(
+                            role="tool",
+                            content=answer,
+                            tool_call_id=tool_call.id,
+                            tool_call_name=tool_call.function.name,
+                        )
                     )
-                )
-                st.session_state.pending_tool_call = None
-                self.agent.step()
-                st.rerun()
-        else:
-            # 调用工具
-            self.agent.use_tool_call(tool_call)
-            st.session_state.pending_tool_call = None
-            self.agent.step()
-            st.rerun()
+                    tool_calls.pop(0)
+                    st.rerun()
+                return
+            else:
+                # 调用工具
+                self.agent.use_tool_call(tool_call)
+                tool_calls.pop(0)
+
+        result = self.agent.step()
+        if isinstance(result, list):
+            # 处理 agent 工具调用后还需要继续调用工具的情况
+            st.session_state.pending_tool_call.extend(result)
+        st.rerun()
 
     @staticmethod
     def human_callback(tool_name: str, args):

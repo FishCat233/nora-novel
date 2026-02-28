@@ -4,7 +4,7 @@ from typing import Optional, Callable
 
 from openai import OpenAI
 
-from .tools import Tool, tools, tool_meta
+from .tools import Tool, tools
 from .types import ChatMessage, CustomMessage
 
 
@@ -126,7 +126,7 @@ class NoraAgent:
             model="deepseek-ai/DeepSeek-V3.2",
             messages=self.messages,
             tools=tools,
-            max_tokens=1024,
+            max_tokens=2048,
         )
 
         return response.choices[0].message

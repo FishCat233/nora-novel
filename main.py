@@ -6,6 +6,7 @@ import src.view as view
 import logging
 
 from src.core.core import NoraAgent
+from src.storage.wiki import Wiki
 
 load_dotenv()
 
@@ -21,8 +22,11 @@ client: OpenAI = OpenAI(
 if "agent" not in st.session_state:
     st.session_state.agent = NoraAgent(client)
 
+if "wiki" not in st.session_state:
+    st.session_state.wiki = Wiki.get_instance()
+
 if "pending_tool_call" not in st.session_state:
-    st.session_state.pending_tool_call = None
+    st.session_state.pending_tool_call = []
 
 ## ======== Page =======
 

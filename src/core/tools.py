@@ -1,5 +1,8 @@
-from typing import Type, Union, Literal
+import json
+from typing import Type
 from pydantic import BaseModel, ConfigDict
+
+from ..storage.wiki import Wiki
 
 
 class GetCurrentTimeParams(BaseModel):
@@ -14,18 +17,35 @@ class AskUserParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-tool_registry = {}
-tool_meta = {}
-tools = []
+class SearchWikiParams(BaseModel):
+    query: str
+    in_content: bool = False
+    recursive: bool = True
 
-type ToolType = Union[
-    Literal["function"],  # 函数工具，如检查时间
-    Literal["human_callback"],  # 用户回调工具，如询问用户
-]
+    model_config = ConfigDict(extra="forbid")
+
+
+class GetWikiPageByTitle(BaseModel):
+    title: str
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class GetWikiPageByPath(BaseModel):
+    path: str
+    model_config = ConfigDict(extra="forbid")
+
+
+class ListWikiPagesParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+tool_registry = {}
+tools = []
 
 
 @staticmethod
-def register_tool(schema_model: Type[BaseModel], tool_type: ToolType = "function"):
+def register_tool(schema_model: Type[BaseModel]):
     """
     注册工具到仓库
     Args:
@@ -37,9 +57,6 @@ def register_tool(schema_model: Type[BaseModel], tool_type: ToolType = "function
 
     def wrapper(func):
         tool_registry[func.__name__] = func
-        tool_meta[func.__name__] = {
-            "type": tool_type,
-        }
 
         tools.append(
             {
@@ -61,7 +78,7 @@ class Tool:
     @staticmethod
     def dispatch(name: str, arguments: dict):
         if name in tool_registry:
-            return tool_registry[name](**arguments)
+            return json.dumps(tool_registry[name](**arguments), ensure_ascii=False)
 
         raise ValueError(f"Unknown tool: {name}")
 
@@ -85,7 +102,7 @@ class Tool:
             return "Invalid time format"
 
     @staticmethod
-    @register_tool(AskUserParams, tool_type="human_callback")
+    @register_tool(AskUserParams)
     def ask_user(prompt: str) -> str:
         """
         向用户提问
@@ -95,3 +112,46 @@ class Tool:
         Returns: 用户回答
         """
         pass
+
+    @staticmethod
+    @register_tool(SearchWikiParams)
+    def search_wiki(
+        query: str, in_content: bool = False, recursive: bool = False
+    ) -> dict[str, str]:
+        """
+        搜索用户小说 Wiki 中的条目，以获得更多信息。
+        Args:
+            query: 搜索关键词或 Wiki 路径
+            in_content: 是否在内容中搜索，默认为 False
+            recursive: 是否递归搜索，默认为 True
+        Returns: 符合条件的条目路径和其全部内容
+        """
+
+        result = {}
+
+        paths: list[str] = Wiki.search_wiki(query, in_content, recursive)
+        for path in paths:
+            result[path] = Wiki.get_wiki_page_by_path(path)
+
+        return result
+
+    @staticmethod
+    @register_tool(GetWikiPageByTitle)
+    def get_wiki_page_by_title(title: str) -> str:
+        """
+        获取用户小说 Wiki 中指定标题的条目内容
+        Args:
+            title: 条目标题
+
+        Returns: 条目内容
+        """
+        return Wiki.get_wiki_page_by_title(title)
+
+    @staticmethod
+    @register_tool(ListWikiPagesParams)
+    def list_wiki_pages() -> list[str]:
+        """
+        列出用户小说 Wiki 中的所有条目路径
+        Returns: 条目路径列表
+        """
+        return Wiki.list_wiki_pages()
