@@ -39,6 +39,8 @@ logging.info(
     f"使用 Wiki 路径：{Wiki.data_path}, 下面有 {len(Wiki.list_wiki_pages())} 个条目"
 )
 
+logging.info(f"当前有 {len(st.session_state.pending_tool_call)} 个待处理的工具调用")
+
 st.set_page_config(page_title="Nora Novel", page_icon="✒️")
 
 ## ======== Page =======

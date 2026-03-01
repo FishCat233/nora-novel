@@ -141,8 +141,10 @@ class NoraAgent:
             tools=self.allow_tools
             if self.allow_tools
             else tools,  # 如果没有限制工具，则默认可以使用所有工具
-            max_tokens=4096,
+            max_tokens=5120,
             extra_body={"thinking_budget": 1024},
         )
+
+        logging.info(f"使用 Token: {response.usage.total_tokens}")
 
         return response.choices[0].message
