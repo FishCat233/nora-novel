@@ -95,12 +95,14 @@ class MainView(IView):
 
                     if message.tool_calls:
                         for tool_call in message.tool_calls:
-                            st.markdown(
-                                f"*调用工具: {tool_call.function.name}, 参数: {tool_call.function.arguments}*"
-                            )
+                            with st.expander(
+                                f"🔧 调用工具: {tool_call.function.name}",
+                                expanded=False,
+                            ):
+                                st.markdown(f"*参数: {tool_call.function.arguments}*")
             elif message.role == "tool":
-                # 显示工具调用结果
-                with st.chat_message("user"):
+                with st.expander("⚙️ 调用结果", expanded=False):
+                    # 显示工具调用结果
                     st.markdown(f"*调用结果: {message.content}*")
 
     def chat_input(self):
