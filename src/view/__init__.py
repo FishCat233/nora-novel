@@ -7,6 +7,7 @@ from src.core.pipeline_tool import PIPELINE
 from src.core.core import NoraAgent
 from src.core.types import CustomMessage
 from src.storage.wiki import Wiki
+import src.utils as utils
 
 
 class IView(ABC):
@@ -83,7 +84,14 @@ class MainView(IView):
             elif message.role == "assistant":
                 # 如果是 tool_calls 则显示 tool_calls
                 with st.chat_message("assistant"):
-                    st.markdown(message.content)
+                    thought, response = utils.split_thought_response(message.content)
+
+                    if thought:
+                        with st.expander("🤔 已深度思考不知道多少秒", expanded=False):
+                            st.markdown(thought)
+
+                    if response:
+                        st.markdown(response)
 
                     if message.tool_calls:
                         for tool_call in message.tool_calls:
