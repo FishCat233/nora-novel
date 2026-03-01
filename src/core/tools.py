@@ -1,5 +1,5 @@
 import json
-from typing import Type
+from typing import Type, Literal
 from pydantic import BaseModel, ConfigDict
 
 from ..storage.wiki import Wiki
@@ -21,6 +21,7 @@ class SearchWikiParams(BaseModel):
     query: str
     in_content: bool = False
     recursive: bool = True
+    mode: Literal["and", "or", "single"] = "or"
 
     model_config = ConfigDict(extra="forbid")
 
@@ -123,14 +124,19 @@ class Tool:
     @staticmethod
     @register_tool(SearchWikiParams)
     def search_wiki(
-        query: str, in_content: bool = False, recursive: bool = True
+        query: str,
+        in_content: bool = False,
+        recursive: bool = True,
+        mode: Literal["and", "or", "single"] = "or",
     ) -> dict[str, str]:
         """
         搜索用户小说 Wiki 中的条目，以获得更多信息。
         Args:
-            query: 搜索关键词或 Wiki 路径
+            query: 搜索关键词或 Wiki Path (如“哈基米”、“角色::哈基米::能力”、“哈基米|大狗椒|宴会”）
             in_content: 是否在内容中搜索，默认为 False
             recursive: 是否递归搜索，默认为 True
+            mode: 搜索模式，当使用多关键词模式时使用“|”分割关键词。and 表示所有关键词都要匹配，or 表示只要有一个关键词匹配即可，
+                single 表示不进行多关键词搜索。默认为 or
         Returns: 符合条件的条目路径和其全部内容
         """
 

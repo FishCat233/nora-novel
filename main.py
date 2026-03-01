@@ -35,6 +35,10 @@ if "wiki" not in st.session_state:
 if "pending_tool_call" not in st.session_state:
     st.session_state.pending_tool_call = []
 
+logging.info(
+    f"使用 Wiki 路径：{Wiki.data_path}, 下面有 {len(Wiki.list_wiki_pages())} 个条目"
+)
+
 st.set_page_config(page_title="Nora Novel", page_icon="✒️")
 
 ## ======== Page =======

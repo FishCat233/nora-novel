@@ -150,7 +150,7 @@ class MainView(IView):
                         "确认修改", key=f"confirm_{tool_call.id}", type="primary"
                     ):
                         # 执行实际的修改逻辑
-                        result = self.agent.use_tool_call(tool_call)
+                        self.agent.use_tool_call(tool_call)
                         tool_calls.pop(0)
                         st.rerun()
                 with col2:
@@ -177,10 +177,3 @@ class MainView(IView):
             # 处理 agent 工具调用后还需要继续调用工具的情况
             st.session_state.pending_tool_call.extend(result)
         st.rerun()
-
-    @staticmethod
-    def human_callback(tool_name: str, args):
-        if tool_name == "ask_user":
-            return st.text_input(args["prompt"])
-        else:
-            raise NotImplementedError(f"Unknown tool: {tool_name}")

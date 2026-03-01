@@ -1,6 +1,6 @@
 import logging
 import json
-from typing import Optional, Callable
+from typing import Optional
 
 from openai import OpenAI
 
@@ -40,16 +40,13 @@ class NoraAgent:
 
         return self
 
-    def chat(
-        self, prompt: str, human_callback: Optional[Callable] = None
-    ) -> Optional[ChatMessage]:
+    def chat(self, prompt: str) -> Optional[ChatMessage]:
         """
         进行 ReAct 对话，解决用户的问题。
 
         会话过程中会记录 message
         Args:
             prompt: 提示词
-            human_callback: 回调函数，在需要用户参与 loop 时调用。
 
         Returns: 最终回复
         """
@@ -69,16 +66,8 @@ class NoraAgent:
                 name = tool_call.function.name
                 args = json.loads(tool_call.function.arguments)
 
-                if tool_meta[name]["type"] == "human_callback":
-                    # 如果是 human_callback 类型的工具
-                    if not human_callback:
-                        logging.error("没有提供人类回调函数.")
-                        return None
-
-                    result = human_callback(name, args)
-                else:
-                    # 如果是 function 类型的工具
-                    result = Tool.dispatch(name, args)
+                # 如果是 function 类型的工具
+                result = Tool.dispatch(name, args)
 
                 self.messages.append(
                     CustomMessage(
