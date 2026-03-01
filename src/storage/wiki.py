@@ -163,6 +163,22 @@ class Wiki:
         except Exception as e:
             return f"更新失败: {str(e)}"
 
+    def remove_wiki_page(path: str) -> str:
+        """
+        删除指定路径的条目内容
+        Args:
+            path: Wiki 条目路径
+        Returns: str
+        """
+        path = path.replace("::", os.sep)
+        full_path = os.path.join(Wiki.data_path, path)
+
+        try:
+            os.remove(full_path)
+            return f"成功删除页面: {path}"
+        except Exception as e:
+            return f"删除失败: {str(e)}"
+
     @staticmethod
     def wiki_path_to_system_path(wiki_path: str) -> str:
         return wiki_path.replace("::", os.sep)

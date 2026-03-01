@@ -48,6 +48,11 @@ class UpdateWikiPageParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class RemoveWikiPageParams(BaseModel):
+    path: str
+    model_config = ConfigDict(extra="forbid")
+
+
 tool_registry = {}
 tools = []
 
@@ -132,7 +137,7 @@ class Tool:
         """
         搜索用户小说 Wiki 中的条目，以获得更多信息。
         Args:
-            query: 搜索关键词或 Wiki Path (如“哈基米”、“角色::哈基米::能力”、“哈基米|大狗椒|宴会”）
+            query: 搜索关键词或 Wiki Path (如“哈基米”、“角色::哈基米::能力”）
             in_content: 是否在内容中搜索，默认为 False
             recursive: 是否递归搜索，默认为 True
             mode: 搜索模式，当使用多关键词模式时使用“|”分割关键词。and 表示所有关键词都要匹配，or 表示只要有一个关键词匹配即可，
@@ -173,7 +178,9 @@ class Tool:
     @register_tool(UpdateWikiPageParams)
     def update_wiki_page(path: str, content: str, append: bool = False) -> str:
         """
-        更新指定路径的条目内容。如果条目不存在则会创建条目。
+        请求更新指定路径的条目内容。如果条目不存在则会创建条目。
+
+        如果用户取消请求，则不会进行更新。
         Args:
             path: Wiki 条目路径（带扩展名 .md / .txt）
             content: 新内容
@@ -181,3 +188,17 @@ class Tool:
         Returns: 执行结果 (str)
         """
         return Wiki.update_wiki_page(path, content, append)
+
+    @staticmethod
+    @register_tool(RemoveWikiPageParams)
+    def remove_wiki_page(path: str) -> str:
+        """
+        请求删除指定路径的条目
+
+        如果用户取消请求，则不会进行删除。
+        Args:
+            path: Wiki 条目路径（带扩展名 .md / .txt）
+
+        Returns: 执行结果 (str)
+        """
+        return Wiki.remove_wiki_page(path)
