@@ -6,6 +6,7 @@ import streamlit as st
 from src.core.pipeline_tool import PIPELINE
 from src.core.core import NoraAgent
 from src.core.types import CustomMessage
+from src.storage.wiki import Wiki
 
 
 class IView(ABC):
@@ -115,6 +116,17 @@ class MainView(IView):
             st.rerun()
 
     def handle_pending_tool_call(self):
+        def use_ui_tool_call(calls):
+            calls.pop(0)
+
+            # 如果列表空了，让 llm 继续思考
+            if not tool_calls:
+                res = self.agent.step()
+                if isinstance(res, list):
+                    calls.extend(res)
+
+            st.rerun()
+
         while st.session_state.pending_tool_call:
             tool_calls: list = st.session_state.pending_tool_call
 
@@ -136,8 +148,7 @@ class MainView(IView):
                             tool_call_name=tool_call.function.name,
                         )
                     )
-                    tool_calls.pop(0)
-                    st.rerun()
+                    use_ui_tool_call(tool_calls)
                 return
             elif name == "update_wiki_page":
                 # 修改条目前跟用户确认
@@ -164,8 +175,35 @@ class MainView(IView):
                                 tool_call_name=tool_call.function.name,
                             )
                         )
-                        tool_calls.pop(0)
-                        st.rerun()
+                        use_ui_tool_call(tool_calls)
+            elif name == "remove_wiki_page":
+                # 删除前跟用户进行确认
+                st.warning(f"⚠️ Agent 请求删除维基页面: **{args.get('path')}**")
+                st.code(
+                    Wiki.get_wiki_page_by_path(args.get("path")), language="markdown"
+                )  # 显示删除内容
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(
+                        "确认删除", key=f"confirm_{tool_call.id}", type="primary"
+                    ):
+                        # 执行实际的修改逻辑
+                        self.agent.use_tool_call(tool_call)
+                        use_ui_tool_call(tool_calls)
+                with col2:
+                    if st.button("拒绝删除", key=f"deny_{tool_call.id}"):
+                        # 告诉 Agent 用户拒绝了
+                        self.agent.messages.append(
+                            CustomMessage(
+                                role="tool",
+                                content="ERROR: 用户拒绝了删除",
+                                tool_call_id=tool_call.id,
+                                tool_call_name=tool_call.function.name,
+                            )
+                        )
+                        use_ui_tool_call(tool_calls)
+
                 return  # 必须 Return，等待用户点击按钮
             else:
                 # 调用工具
