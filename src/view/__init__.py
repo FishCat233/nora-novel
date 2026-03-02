@@ -87,7 +87,7 @@ class MainView(IView):
                     thought, response = utils.split_thought_response(message.content)
 
                     if thought:
-                        with st.expander("🤔 已深度思考不知道多少秒", expanded=False):
+                        with st.expander("🤔 已浅度思考不知道多少秒", expanded=False):
                             st.markdown(thought)
 
                     if response:
@@ -148,17 +148,26 @@ class MainView(IView):
             # 如果需要 ui 则先调用 ui
             if name == "ask_user":
                 prompt = args["prompt"]
-                answer = st.text_input(prompt, key=f"tool_{tool_call.id}")
-                if answer:
-                    self.agent.messages.append(
-                        CustomMessage(
-                            role="tool",
-                            content=answer,
-                            tool_call_id=tool_call.id,
-                            tool_call_name=tool_call.function.name,
-                        )
+
+                with st.form(f"tool_ask_user_form_{tool_call.id}"):
+                    answer = st.text_area(
+                        prompt,
+                        key=f"tool_{tool_call.id}",
+                        height=150,
+                        placeholder="请输入你的回复...",
                     )
-                    use_ui_tool_call(tool_calls)
+                    submitted = st.form_submit_button("回复")
+
+                    if submitted:
+                        self.agent.messages.append(
+                            CustomMessage(
+                                role="tool",
+                                content=answer,
+                                tool_call_id=tool_call.id,
+                                tool_call_name=tool_call.function.name,
+                            )
+                        )
+                        use_ui_tool_call(tool_calls)
                 return
             elif name == "update_wiki_page":
                 # 修改条目前跟用户确认
@@ -186,6 +195,7 @@ class MainView(IView):
                             )
                         )
                         use_ui_tool_call(tool_calls)
+                return
             elif name == "remove_wiki_page":
                 # 删除前跟用户进行确认
                 st.warning(f"⚠️ Agent 请求删除维基页面: **{args.get('path')}**")

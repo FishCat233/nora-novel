@@ -29,7 +29,7 @@ class Wiki:
         """
         搜索目录下的条目
         Args:
-            query: 搜索关键词或 Wiki Path (如“哈基米”、“角色::哈基米::能力”）
+            query: 搜索关键词或 Wiki Path (如关键词“哈基米”、Wiki路径“角色::哈基米::能力”、多关键词“哈基米|叮咚鸡”）
             in_content: 是否在内容中搜索
             recursive: 是否递归搜索
             mode: 搜索模式，当使用多关键词模式时会使用“|”符号分割 query 为多个关键词。and 表示所有关键词都要匹配，or 表示只要有一个关键词匹配即可，
@@ -134,7 +134,7 @@ class Wiki:
     @staticmethod
     def list_wiki_pages() -> list[str]:
         paths = Wiki.search_wiki("", in_content=False, recursive=True, mode="single")
-        return [Wiki.wiki_path_to_system_path(path) for path in paths]
+        return paths
 
     @staticmethod
     def update_wiki_page(path: str, content: str, append: bool = False) -> str:
@@ -159,7 +159,7 @@ class Wiki:
             with open(full_path, mode, encoding="utf-8") as f:
                 f.write(content)
 
-            return f"成功更新页面: {path}"
+            return f"成功更新页面: {Wiki.system_path_to_wiki_path(path)}"
         except Exception as e:
             return f"更新失败: {str(e)}"
 
