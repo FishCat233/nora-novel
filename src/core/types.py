@@ -9,5 +9,6 @@ type ChatMessage = Union[ChatCompletionMessage, CustomMessage]
 class CustomMessage(BaseModel):
     role: str
     content: Optional[str] = ""
+    tool_calls: Optional[list] = None
     tool_call_id: Optional[str] = None
     tool_call_name: Optional[str] = None

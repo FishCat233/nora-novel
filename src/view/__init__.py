@@ -1,7 +1,10 @@
 import json
 from abc import ABC, abstractmethod
+from http.client import responses
+
 from openai import OpenAI
 import streamlit as st
+from streamlit import markdown
 
 from src.core.pipeline_tool import PIPELINE
 from src.core.core import NoraAgent
@@ -124,6 +127,82 @@ class MainView(IView):
                     st.session_state.pending_tool_call.append(tool_call)
 
             st.rerun()
+
+    def chat_view(self):
+        # 当前轮到用户交互
+        if prompt := st.chat_input("输入你的消息..."):
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            with st.chat_message("assistant"):
+                thought_placeholder = st.empty()
+                answer_placeholder = st.empty()
+
+                answer_buffer = ""
+                tool_calls = []
+
+                # 解析流
+                for event in self.agent.step_stream(prompt):
+                    if event["type"] == "content":
+                        answer_buffer += event["data"]
+                        answer_placeholder.markdown(answer_buffer)
+                    elif event["type"] == "tool_calls":
+                        tool_calls.append(event["data"])
+                    elif event["type"] == "final":
+                        pass
+
+                # 结束回答后，解析思考和回答部分
+                thought, answer = utils.split_thought_response(answer_buffer)
+                if thought:
+                    thought_placeholder.expander(
+                        "🤔 已浅度思考不知道多少秒", expanded=False
+                    ).markdown(thought)
+                if answer:
+                    answer_placeholder.markdown(answer)
+                else:
+                    answer_placeholder.empty()
+
+                # 解析工具调用
+                if tool_calls:
+                    # 显示工具
+                    for tc in tool_calls:
+                        with st.expander(
+                            f"🔧 调用工具: {tc["function"]["name"]}", expanded=False
+                        ):
+                            st.markdown(f"*参数: {tc["function"]["arguments"]}*")
+
+                    # 处理工具
+                    self.handle_pending_tool_call_stream(tool_calls)
+
+    def handle_pending_tool_call_stream(self, tool_calls):
+        while tool_calls:
+            tool_call = tool_calls.pop(0)
+            name = tool_call["function"]["name"]
+            args = tool_call["function"]["arguments"]
+            tool_call_id = tool_call["id"]
+
+            if name == "ask_user":
+                prompt = args["prompt"]
+
+                with st.form(f"tool_ask_user_form_{tool_call.id}"):
+                    answer = st.text_area(
+                        prompt,
+                        key=f"tool_{tool_call.id}",
+                        height=150,
+                        placeholder="请输入你的回复...",
+                    )
+                    submitted = st.form_submit_button("回复")
+
+                    if submitted:
+                        self.agent.messages.append(
+                            CustomMessage(
+                                role="tool",
+                                content=answer,
+                                tool_call_id=tool_call.id,
+                                tool_call_name=tool_call.function.name,
+                            )
+                        )
+                        use_ui_tool_call(tool_calls)
 
     def handle_pending_tool_call(self):
         def use_ui_tool_call(calls):
