@@ -2,7 +2,7 @@ import json
 from typing import Type, Literal
 from pydantic import BaseModel, ConfigDict
 
-from ..storage.wiki import Wiki
+from nora_novel.storage.wiki import Wiki
 
 
 class GetCurrentTimeParams(BaseModel):
