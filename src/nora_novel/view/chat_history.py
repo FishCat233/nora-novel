@@ -2,6 +2,7 @@ import streamlit as st
 
 from nora_novel.core.agent import NoraAgent
 import nora_novel.utils as utils
+from nora_novel.core.types import CommonChatMessage
 
 
 def chat_history(agent: NoraAgent):
@@ -12,14 +13,17 @@ def chat_history(agent: NoraAgent):
         elif message.role == "assistant":
             thought, response = utils.split_thought_response(message.content)
 
-            call_info = (
-                [
-                    (call.function.name, call.function.arguments)
-                    for call in message.tool_calls
-                ]
-                if message.tool_calls
-                else []
-            )
+            call_info: list[tuple[str, str]] = None  # noqa
+            if isinstance(message, CommonChatMessage):
+                call_info = (
+                    [
+                        (call["function"]["name"], call["function"]["arguments"])
+                        for call in message.tool_calls
+                        if call
+                    ]
+                    if message.tool_calls
+                    else []
+                )
 
             chat_assistant(thought, response, call_info)
 
@@ -43,20 +47,21 @@ def chat_assistant(thought: str, response: str, call_infos: list[(str, str)]):
     Returns:
     """
 
-    if thought:
-        with st.expander("🤔 已浅度思考不知道多少秒", expanded=False):
-            st.markdown(thought)
+    with st.chat_message("assistant"):
+        if thought:
+            with st.expander("🤔 已浅度思考不知道多少秒", expanded=False):
+                st.markdown(thought)
 
-    if response:
-        st.markdown(response)
+        if response:
+            st.markdown(response)
 
-    if call_infos:
-        for name, arg in call_infos:
-            with st.expander(
-                f"🔧 调用工具: {name}",
-                expanded=False,
-            ):
-                st.markdown(f"*参数: {arg}*")
+        if call_infos:
+            for name, arg in call_infos:
+                with st.expander(
+                    f"🔧 调用工具: {name}",
+                    expanded=False,
+                ):
+                    st.markdown(f"*参数: {arg}*")
 
 
 def chat_tool(result_content: str):

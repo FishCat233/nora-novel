@@ -10,7 +10,7 @@ type ChatMessage = Union[ChatCompletionMessage, CommonChatMessage, ToolCallMessa
 class CommonChatMessage(BaseModel):
     role: Literal["user", "assistant", "system"]
     content: str = ""
-    tool_calls: Optional[list] = None
+    tool_calls: Optional[list["ToolCallJson"]] = None
 
 
 class ToolCallMessage(BaseModel):
@@ -20,7 +20,13 @@ class ToolCallMessage(BaseModel):
     tool_call_name: Optional[str] = None
 
 
-class ToolCall(TypedDict):
-    id: str
+class _FunctionCall(TypedDict):
     name: str
-    arguments: dict
+    arguments: str
+
+
+class ToolCallJson(TypedDict):
+    id: str
+    type: Literal["function"]
+
+    function: _FunctionCall

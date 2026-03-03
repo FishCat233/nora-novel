@@ -1,36 +1,31 @@
+import json
 from dataclasses import dataclass
 import logging
-from typing import Optional, Callable, Literal, Union, Generator, Any, TypedDict
+from typing import Optional, Literal, Union
 
 from openai import OpenAI
 
 from .pipeline_tool import PipelineTool
 from .tools import Tool, tools
-from .types import ChatMessage, ToolCall, CommonChatMessage, ToolCallMessage
+from .types import ChatMessage, ToolCallJson, CommonChatMessage, ToolCallMessage
 
 
 # TODO: 写恶心了🤢 重写吧
 
 
-@dataclass
-class ToolCallHook:
-    time: Literal["before", "after"]
-    func: Callable[
-        ["NoraAgent", ToolCall], bool
-    ]  # 返回 True 表示继续执行，返回 False 表示终止执行
-
-
 type StreamEvent = Union[StreamContentEvent, StreamFinalEvent]
 
 
-class StreamContentEvent(TypedDict):
-    type: Literal["content"]
+@dataclass
+class StreamContentEvent:
     data: str
+    type: Literal["content"] = "content"
 
 
-class StreamFinalEvent(TypedDict):
-    type: Literal["final"]
+@dataclass
+class StreamFinalEvent:
     data: CommonChatMessage
+    type: Literal["final"] = "final"
 
 
 class NoraAgent:
@@ -45,7 +40,7 @@ class NoraAgent:
         ] + inital_message
         self.allow_tools = None
 
-        self._tool_call_hook: dict[str, ToolCallHook] = {}
+        self.pending_tool: list[ToolCallJson] = []
 
     def setup_pipeline(self, pipeline: PipelineTool) -> "NoraAgent":
         self.system_prompt = pipeline.system_prompt
@@ -65,12 +60,6 @@ class NoraAgent:
         ]
 
         return self
-
-    def add_tool_call_hook(self, name: str, hook: ToolCallHook):
-        self._tool_call_hook[name] = hook
-
-    def remove_tool_call_hook(self, name: str) -> Optional[ToolCallHook]:
-        return self._tool_call_hook.pop(name, None)
 
     def step(self, prompt=None):
         """
@@ -108,58 +97,62 @@ class NoraAgent:
             self.messages.append(CommonChatMessage(role="user", content=prompt))
 
         generator = self._single_step_stream()
-        final_message: Optional[CommonChatMessage] = None
+        final_event: Optional[StreamFinalEvent] = None
+
         for event in generator:
-            if event["type"] == "final":
-                final_message = event["data"]
+            if isinstance(event, StreamFinalEvent):
+                final_event = event
+                continue
             else:
                 yield event
 
-        self.messages.append(final_message)
+        if final_event is None:
+            raise RuntimeError("No final event")
 
-        if final_message.tool_calls:
-            yield {"type": "tool_calls", "data": final_message.tool_calls}
-        else:
-            yield {"type": "final"}
+        self.messages.append(final_event.data)
 
-    def _execute_tool_call(self, tool_call: ToolCall) -> None:
+        if final_event.data.tool_calls:
+            self.pending_tool.extend(final_event.data.tool_calls)
+
+        yield final_event
+
+    def execute_tool_call(
+        self, tool_call: ToolCallJson, skip_content: str = None
+    ) -> None:
         """
-        使用工具完成 tool_call，并将结果加入到 messages 中
+        使用工具完成 tool_call，并将结果加入到 messages 中，然后消耗 pending_list 中的 tool_call
         Args:
             tool_call: tool_call
+            skip_content: 如果不为空，则使用此内容替换工具的调用内容
 
         Returns: None
         """
-        prefix_hook = [
-            hook for hook in self._tool_call_hook.values() if hook.time == "before"
-        ]
-        postfix_hook = [
-            hook for hook in self._tool_call_hook.values() if hook.time == "after"
-        ]
+        if skip_content:
+            self.messages.append(
+                ToolCallMessage(
+                    role="tool",
+                    content=skip_content,
+                    tool_call_id=tool_call["id"],
+                    tool_call_name=tool_call["function"]["name"],
+                )
+            )
+            self.pending_tool.remove(tool_call)
+            return
 
-        if prefix_hook:
-            for hook in prefix_hook:
-                if not hook.func(self, tool_call):
-                    return
-
-        name = tool_call["name"]
-        args = tool_call["arguments"]
+        name = tool_call["function"]["name"]
+        args = json.loads(tool_call["function"]["arguments"])
 
         result = Tool.dispatch(name, args)
-
-        if postfix_hook:
-            for hook in postfix_hook:
-                if not hook.func(self, tool_call):
-                    return
 
         self.messages.append(
             ToolCallMessage(
                 role="tool",
                 content=str(result),
                 tool_call_id=tool_call["id"],
-                tool_call_name=tool_call["name"],
+                tool_call_name=name,
             )
         )
+        self.pending_tool.remove(tool_call)
 
     def _single_step(self):
         """
@@ -181,7 +174,7 @@ class NoraAgent:
 
         return response.choices[0].message
 
-    def _single_step_stream(self) -> Generator[StreamEvent, Any, None]:
+    def _single_step_stream(self):
         """
         流式单步对话生成器。
         Yields:
@@ -196,6 +189,7 @@ class NoraAgent:
             tools=self.allow_tools
             if self.allow_tools
             else tools,  # 如果没有限制工具，则默认可以使用所有工具
+            stream=True,
             max_tokens=5120,
             extra_body={"thinking_budget": 2048},
         )
@@ -205,6 +199,8 @@ class NoraAgent:
 
         for chunk in response:
             delta = chunk.choices[0].delta
+
+            logging.debug(f"收到 chunk: {delta}")
 
             if delta.content:
                 collected_content += delta.content
@@ -224,14 +220,14 @@ class NoraAgent:
                         }
                     else:
                         if tool_chunk.function.arguments:
-                            collected_tool_calls[idx]["arguments"] = (
+                            collected_tool_calls[idx]["arguments"] += (
                                 tool_chunk.function.arguments
                             )
 
             if chunk.choices[0].finish_reason:
                 break
 
-        tool_calls = []
+        tool_calls: list[ToolCallJson] = []
         for tc in collected_tool_calls.values():
             tool_calls.append(
                 {
