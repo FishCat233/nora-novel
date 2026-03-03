@@ -1,12 +1,36 @@
+from dataclasses import dataclass
 import logging
-import json
-from typing import Optional, Callable, Any
+from typing import Optional, Callable, Literal, Union, Generator, Any, TypedDict
 
 from openai import OpenAI
 
 from .pipeline_tool import PipelineTool
 from .tools import Tool, tools
-from .types import ChatMessage, CustomMessage
+from .types import ChatMessage, ToolCall, CommonChatMessage, ToolCallMessage
+
+
+# TODO: 写恶心了🤢 重写吧
+
+
+@dataclass
+class ToolCallHook:
+    time: Literal["before", "after"]
+    func: Callable[
+        ["NoraAgent", ToolCall], bool
+    ]  # 返回 True 表示继续执行，返回 False 表示终止执行
+
+
+type StreamEvent = Union[StreamContentEvent, StreamFinalEvent]
+
+
+class StreamContentEvent(TypedDict):
+    type: Literal["content"]
+    data: str
+
+
+class StreamFinalEvent(TypedDict):
+    type: Literal["final"]
+    data: CommonChatMessage
 
 
 class NoraAgent:
@@ -17,9 +41,11 @@ class NoraAgent:
         self.client: OpenAI = client
         self.system_prompt = system_prompt
         self.messages: list[ChatMessage] = [
-            CustomMessage(role="system", content=self.system_prompt)
+            CommonChatMessage(role="system", content=self.system_prompt)
         ] + inital_message
         self.allow_tools = None
+
+        self._tool_call_hook: dict[str, ToolCallHook] = {}
 
     def setup_pipeline(self, pipeline: PipelineTool) -> "NoraAgent":
         self.system_prompt = pipeline.system_prompt
@@ -31,7 +57,7 @@ class NoraAgent:
                 message.content = self.system_prompt
         if not has_system_prompt:
             self.messages.insert(
-                0, CustomMessage(role="system", content=self.system_prompt)
+                0, CommonChatMessage(role="system", content=self.system_prompt)
             )
 
         self.allow_tools = [
@@ -40,47 +66,11 @@ class NoraAgent:
 
         return self
 
-    def chat(self, prompt: str) -> Optional[ChatMessage]:
-        """
-        进行 ReAct 对话，解决用户的问题。
+    def add_tool_call_hook(self, name: str, hook: ToolCallHook):
+        self._tool_call_hook[name] = hook
 
-        会话过程中会记录 message
-        Args:
-            prompt: 提示词
-
-        Returns: 最终回复
-        """
-        self.messages.append(CustomMessage(role="user", content=prompt))
-
-        for _ in range(15):
-            message = self._single_step()
-
-            # 把 assistant 消息加入历史
-            self.messages.append(message)
-
-            # 检查工具调用
-            if not message.tool_calls:
-                return message
-
-            for tool_call in message.tool_calls:
-                name = tool_call.function.name
-                args = json.loads(tool_call.function.arguments)
-
-                # 如果是 function 类型的工具
-                result = Tool.dispatch(name, args)
-
-                self.messages.append(
-                    CustomMessage(
-                        role="tool",
-                        content=str(result),
-                        tool_call_id=tool_call.id,
-                        tool_call_name=tool_call.function.name,
-                    )
-                )
-
-        logging.error("超出轮次数量.")
-
-        return None
+    def remove_tool_call_hook(self, name: str) -> Optional[ToolCallHook]:
+        return self._tool_call_hook.pop(name, None)
 
     def step(self, prompt=None):
         """
@@ -93,7 +83,7 @@ class NoraAgent:
         """
 
         if prompt:
-            self.messages.append(CustomMessage(role="user", content=prompt))
+            self.messages.append(CommonChatMessage(role="user", content=prompt))
 
         message = self._single_step()
 
@@ -115,10 +105,10 @@ class NoraAgent:
         """
 
         if prompt:
-            self.messages.append(CustomMessage(role="user", content=prompt))
+            self.messages.append(CommonChatMessage(role="user", content=prompt))
 
         generator = self._single_step_stream()
-        final_message: Optional[CustomMessage] = None
+        final_message: Optional[CommonChatMessage] = None
         for event in generator:
             if event["type"] == "final":
                 final_message = event["data"]
@@ -132,38 +122,42 @@ class NoraAgent:
         else:
             yield {"type": "final"}
 
-    def use_tool_call(
-        self,
-        tool_call,
-        prefix_hook: Callable[[Any], bool] = None,
-        postfix_hook: Callable[[Any], bool] = None,
-    ) -> None:
+    def _execute_tool_call(self, tool_call: ToolCall) -> None:
         """
         使用工具完成 tool_call，并将结果加入到 messages 中
         Args:
             tool_call: tool_call
-            prefix_patch: 在读取 tool_calls 调用工具前执行，传入 tool_call, 返回值表示是否继续调用工具
-            postfix_patch: 在调用工具后添加消息前执行，传入 tool_call, 返回值表示是否继续调用工具
 
         Returns: None
         """
-        if prefix_hook and not prefix_hook(tool_call):
-            return
+        prefix_hook = [
+            hook for hook in self._tool_call_hook.values() if hook.time == "before"
+        ]
+        postfix_hook = [
+            hook for hook in self._tool_call_hook.values() if hook.time == "after"
+        ]
 
-        name = tool_call.function.name
-        args = json.loads(tool_call.function.arguments)
+        if prefix_hook:
+            for hook in prefix_hook:
+                if not hook.func(self, tool_call):
+                    return
+
+        name = tool_call["name"]
+        args = tool_call["arguments"]
 
         result = Tool.dispatch(name, args)
 
-        if postfix_hook and not postfix_hook(result):
-            return
+        if postfix_hook:
+            for hook in postfix_hook:
+                if not hook.func(self, tool_call):
+                    return
 
         self.messages.append(
-            CustomMessage(
+            ToolCallMessage(
                 role="tool",
                 content=str(result),
-                tool_call_id=tool_call.id,
-                tool_call_name=tool_call.function.name,
+                tool_call_id=tool_call["id"],
+                tool_call_name=tool_call["name"],
             )
         )
 
@@ -187,7 +181,7 @@ class NoraAgent:
 
         return response.choices[0].message
 
-    def _single_step_stream(self):
+    def _single_step_stream(self) -> Generator[StreamEvent, Any, None]:
         """
         流式单步对话生成器。
         Yields:
@@ -208,14 +202,16 @@ class NoraAgent:
 
         collected_content = ""
         collected_tool_calls = {}
-        final_message = None
 
         for chunk in response:
             delta = chunk.choices[0].delta
 
             if delta.content:
                 collected_content += delta.content
-                yield {"type": "content", "data": delta.content}
+                yield StreamContentEvent(
+                    type="content",
+                    data=delta.content,
+                )
 
             if delta.tool_calls:
                 for tool_chunk in delta.tool_calls:
@@ -245,13 +241,13 @@ class NoraAgent:
                 }
             )
 
-        final_message = CustomMessage(
+        final_message = CommonChatMessage(
             role="assistant",
             content=collected_content,
             tool_calls=tool_calls if tool_calls else None,
         )
 
-        yield {
-            "type": "final",
-            "data": final_message,
-        }
+        yield StreamFinalEvent(
+            type="final",
+            data=final_message,
+        )

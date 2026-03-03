@@ -10,3 +10,13 @@ dependencies = [
     "streamlit>=1.54.0",
     "python-dotenv>=1.0.0",
 ]
+
+[project.scripts]
+nora-novel = "nora_novel.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
