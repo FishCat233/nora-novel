@@ -20,12 +20,13 @@ class Wiki:
         return Wiki._instance
 
     @staticmethod
-    def _parse_keywords(query: str, mode: str) -> List[str]:
-        """根据 mode 解析查询字符串为关键词列表，并去除空关键词。"""
+    def _parse_search_query(query: str, mode: str) -> List[str]:
+        """根据 mode 解析查询字符串为关键词列表。"""
         if mode == "single":
-            return [query] if query else []
+            return [query]
         # mode in ("and", "or")
-        parts = [kw.strip() for kw in query.split("|") if kw.strip()]
+        # parts = [kw.strip() for kw in query.split("|") if kw.strip()]
+        parts = [kw for kw in query.split("|")]
         return parts
 
     @staticmethod
@@ -70,7 +71,9 @@ class Wiki:
             return []
 
         # ---------- 1. 解析关键词 ----------
-        keywords = Wiki._parse_keywords(query, mode)
+        keywords = Wiki._parse_search_query(query, mode)
+
+        # 注意，如果是空关键词则默认扫描全部
         if not keywords:  # 无有效关键词时直接返回空
             return []
 
