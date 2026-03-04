@@ -85,7 +85,7 @@ def _handle_tool_call(agent: NoraAgent, tool_call: ToolCallJson):
             if st.button("确认修改", key=f"confirm_{call_id}", type="primary"):
                 # 执行实际的修改逻辑
                 agent.execute_tool_call(tool_call)
-                st.rerun()
+                need_check = True
         with col2:
             if st.button("拒绝修改", key=f"deny_{call_id}"):
                 # 告诉 Agent 用户拒绝了
@@ -109,6 +109,7 @@ def _handle_tool_call(agent: NoraAgent, tool_call: ToolCallJson):
             if st.button("确认删除", key=f"confirm_{call_id}", type="primary"):
                 # 执行实际的修改逻辑
                 agent.execute_tool_call(tool_call)
+                need_check = True
         with col2:
             if st.button("拒绝删除", key=f"deny_{call_id}"):
                 # 告诉 Agent 用户拒绝了
