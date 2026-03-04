@@ -1,6 +1,25 @@
 import logging
 import os
+from dataclasses import dataclass
+from functools import cached_property
 from typing import Literal, List, Optional
+
+
+@dataclass
+class WikiPath:
+    path: str = ""
+
+    @staticmethod
+    def from_path(file_path: str) -> "WikiPath":
+        return WikiPath(file_path.replace(os.sep, "::"))
+
+    @cached_property
+    def file_path(self) -> str:
+        return path.replace("::", os.sep)
+
+    @cached_property
+    def name(self):
+        return path.split("::")[-1]
 
 
 class Wiki:
