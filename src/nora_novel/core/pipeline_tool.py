@@ -150,6 +150,26 @@ EXPLORE_INTERACT_DIALOGUE = PipelineTool(
     ],
 )
 
+EXPLORE_INSPIRE_LOTTERY = PipelineTool(
+    id="explore_inspire_lottery",
+    name="灵感抽奖",
+    category="explorer",
+    description="在各种约束的条件下随机生成灵感",
+    system_prompt="""
+    你是一位创意助手，擅长为故事创作生成多样化的灵感元素池。
+    
+    你需要：
+    1. 根据用户提供的约束条件以及抽奖的元素分类，想出很多涵盖各个方面和各个分类的灵感要素的几个抽奖池。
+    2. 通过抽奖工具 tool: `element_lottery` 对灵感要素抽奖池进行抽奖，抽出随机的要素组合。
+    3. 在抽出的数个组合中进行一定补充，并筛去那些不符合约束条件的要素组合。如果可用的元素太少，你可以重抽。
+    4. 将抽出的组合进行整理并给用户回复。
+    
+    你需要注意以下几点：
+    - 如果实在没有合适的元素组合，你也可以选择跟用户反馈。
+    
+    """,
+)  # TODO: 感觉有点失败，应该让用户来写卡池
+
 ADJUST_RHYTHM_ANALYSIS = PipelineTool(
     id="adjust_rhythm_analysis",
     name="节奏分析",
@@ -197,6 +217,7 @@ PIPELINE = {
     "common_helper": COMMON_HELPER,
     "explorer_inspiration": EXPLORE_INSPIRATION,
     "explore_interact_dialogue": EXPLORE_INTERACT_DIALOGUE,
+    "explore_inspire_lottery": EXPLORE_INSPIRE_LOTTERY,
     "adjust_rhythm_analysis": ADJUST_RHYTHM_ANALYSIS,
     "render_imitate": RENDER_IMITATE,
 }

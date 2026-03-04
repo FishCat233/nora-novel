@@ -1,4 +1,5 @@
 import json
+import random
 from typing import Type, Literal
 from pydantic import BaseModel, ConfigDict
 
@@ -50,6 +51,13 @@ class UpdateWikiPageParams(BaseModel):
 
 class RemoveWikiPageParams(BaseModel):
     path: str
+    model_config = ConfigDict(extra="forbid")
+
+
+class ElementLotteryParams(BaseModel):
+    elements: dict[str, list[str]]
+    times: int
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -202,3 +210,28 @@ class Tool:
         Returns: 执行结果 (str)
         """
         return Wiki.remove_wiki_page(path)
+
+    @staticmethod
+    @register_tool(ElementLotteryParams)
+    def element_lottery(
+        elements: dict[str, list[str]], times: int = 1
+    ) -> list[dict[str, str]]:
+        """
+        元素抽奖。从数个抽奖池中各抽取一个，然后拼在一起返回。
+        Args:
+            elements: 字典，key 是抽奖池的名称，value 是抽奖池元素的列表。例如：{"能力": ["飞行", "隐身"], "代价": ["失去记忆", "寿命缩短", "年轻10岁"], "副作用": ["使用时爆衣", "胃疼", "脚滑", "皮肤对灰尘极易过敏"]}
+            times: 抽奖次数，默认为 1
+
+        Returns: 多次抽取结果的列表，其中每个元素是一个 dict。key 是抽奖池的名称，value 是奖池抽中的元素。
+        """
+        result = []
+        for i in range(times):
+            this_result = {}
+            for category, options in elements.items():
+                if options:
+                    this_result[category] = random.choice(options)
+                else:
+                    this_result[category] = "ERROR: 奖池为空"
+            result.append(this_result)
+
+        return result
