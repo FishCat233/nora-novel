@@ -1,9 +1,13 @@
 import os
 import sys
 
+import yaml
+
 
 def main():
     import streamlit as st
+    import streamlit_authenticator as stauth
+
     from openai import OpenAI
     from dotenv import load_dotenv
     import logging
@@ -18,6 +22,8 @@ def main():
     # ===== initialize =====
 
     logging.basicConfig(level=logging.DEBUG)
+
+    st.set_page_config(page_title="Nora Novel", page_icon="✒️")
 
     client: OpenAI = OpenAI(
         api_key=os.getenv("SILICONFLOW_API_KEY"),
@@ -47,11 +53,35 @@ def main():
 
     logging.info(f"当前有 {len(st.session_state.pending_tool_call)} 个待处理的工具调用")
 
-    st.set_page_config(page_title="Nora Novel", page_icon="✒️")
-
     ## ======== Page =======
 
-    main_view(st.session_state.agent)
+    with open(os.getenv("AUTH_CONFIG_PATH")) as file:
+        config = yaml.load(file, Loader=yaml.SafeLoader)
+
+    authenticator = stauth.Authenticate(
+        config["credentials"],
+        config["cookie"]["name"],
+        config["cookie"]["key"],
+        config["cookie"]["expiry_days"],
+    )
+
+    try:
+        authenticator.login(
+            max_concurrent_users=1,
+            max_login_attempts=100,
+            single_session=True,
+            captcha=True,
+        )
+    except Exception as e:
+        st.error(e)
+
+    if st.session_state.get("authentication_status"):
+        authenticator.logout("退出登录", "sidebar")
+        main_view(st.session_state.agent)
+    elif st.session_state.get("authentication_status") is False:
+        st.error("用户名或密码错误")
+    elif st.session_state.get("authentication_status") is None:
+        st.warning("请输入用户名和密码")
 
 
 if __name__ == "__main__":

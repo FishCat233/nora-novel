@@ -15,7 +15,7 @@ from nora_novel.view.sidebar import chat_sidebar
 def main_view(agent: NoraAgent):
     st.title("Nora Novel")
 
-    logging.warning(f"EMSAAGEGE: {agent.messages}")
+    logging.warning(f"CURRENT MESSAGES: {agent.messages}")
 
     chat_history(agent)
 
