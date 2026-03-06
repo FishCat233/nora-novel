@@ -1,5 +1,6 @@
 .venv/
 data/
+data2_backup/
 data_backup/
 .env
 __pycache__/

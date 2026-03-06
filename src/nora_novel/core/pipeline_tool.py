@@ -141,13 +141,13 @@ EXPLORE_INTERACT_DIALOGUE = PipelineTool(
     - 保持审视，在用户需要检查的时候对情节给出客观合理的建议。如果没有合适的建议，可以不提出。
     - 注意层次（例如情节时间跨度），用户可能有意识或无意识地将不同层次的情节设计给你，你需要视情况给出不同的问题和建议。
     """,
-    allowed_tools=[
-        "search_wiki",
-        "get_wiki_page_by_title",
-        "list_wiki_pages",
-        "ask_user",
-        "get_current_time",
-    ],
+    # allowed_tools=[
+    #     "search_wiki",
+    #     "get_wiki_page_by_title",
+    #     "list_wiki_pages",
+    #     "ask_user",
+    #     "get_current_time",
+    # ],
 )
 
 EXPLORE_INSPIRE_LOTTERY = PipelineTool(
