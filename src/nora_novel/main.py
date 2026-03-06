@@ -59,7 +59,7 @@ def main():
 
     ## ======== Page =======
 
-    with open(os.getenv("AUTH_CONFIG_PATH")) as file:
+    with open("config/auth_config.yaml") as file:
         config = yaml.load(file, Loader=yaml.SafeLoader)
 
     authenticator = stauth.Authenticate(
