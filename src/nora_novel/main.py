@@ -13,6 +13,7 @@ def main():
     import logging
 
     from nora_novel.view import main_view
+    from nora_novel.view.wiki_manager import WikiManagerView
     from nora_novel.core.pipeline_tool import PIPELINE
     from nora_novel.core.agent import NoraAgent
     from nora_novel.storage.wiki import Wiki
@@ -44,6 +45,9 @@ def main():
 
     if "pending_tool_call" not in st.session_state:
         st.session_state.pending_tool_call = []
+
+    if "page" not in st.session_state:
+        st.session_state.page = "chat"
 
     logging.debug(f"最后一条消息: {st.session_state.agent.messages[-1]}")
 
@@ -77,7 +81,19 @@ def main():
 
     if st.session_state.get("authentication_status"):
         authenticator.logout("退出登录", "sidebar")
-        main_view(st.session_state.agent)
+
+        if st.session_state.page == "wiki_manager":
+            # 显示 Wiki 管理页面
+            wiki_manager = WikiManagerView()
+            wiki_manager.display()
+
+            with st.sidebar:
+                # 添加返回聊天页面的按钮
+                if st.button("返回聊天", key="back_to_chat", use_container_width=True):
+                    st.session_state.page = "chat"
+                    st.rerun()
+        else:
+            main_view(st.session_state.agent)
     elif st.session_state.get("authentication_status") is False:
         st.error("用户名或密码错误")
     elif st.session_state.get("authentication_status") is None:

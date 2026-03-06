@@ -15,11 +15,11 @@ class WikiPath:
 
     @cached_property
     def file_path(self) -> str:
-        return path.replace("::", os.sep)
+        return self.path.replace("::", os.sep)
 
     @cached_property
     def name(self):
-        return path.split("::")[-1]
+        return self.path.split("::")[-1]
 
 
 class Wiki:
@@ -228,6 +228,7 @@ class Wiki:
         except Exception as e:
             return f"更新失败: {str(e)}"
 
+    @staticmethod
     def remove_wiki_page(path: str) -> str:
         """
         删除指定路径的条目内容

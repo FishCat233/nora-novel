@@ -6,6 +6,11 @@ from nora_novel.core.types import CommonChatMessage
 
 def chat_sidebar():
     with st.sidebar:
+        # Wiki 管理入口
+        if st.button("Wiki 管理", key="wiki_manager", use_container_width=True):
+            st.session_state.page = "wiki_manager"
+            st.rerun()
+        
         st.header("Pipeline Module")
 
         categories: dict[str, list] = {}
