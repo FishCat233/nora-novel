@@ -7,3 +7,5 @@ __pycache__/
 .idea/
 *.egg-info/
 auth_config.yaml
+build/
+nora-novel_*.tar
