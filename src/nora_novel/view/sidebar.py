@@ -4,13 +4,14 @@ from nora_novel.core.pipeline_tool import PIPELINE
 from nora_novel.core.types import CommonChatMessage
 
 
-def chat_sidebar():
+def main_sidebar():
     with st.sidebar:
         # Wiki 管理入口
+        st.header("Wiki")
         if st.button("Wiki 管理", key="wiki_manager", use_container_width=True):
             st.session_state.page = "wiki_manager"
             st.rerun()
-        
+
         st.header("Pipeline Module")
 
         categories: dict[str, list] = {}

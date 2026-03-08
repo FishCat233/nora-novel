@@ -14,6 +14,7 @@ def main():
 
     from nora_novel.view import main_view
     from nora_novel.view.wiki_manager import WikiManagerView
+    from nora_novel.view.wiki_manager_simple import SimpleWikiManager
     from nora_novel.core.pipeline_tool import PIPELINE
     from nora_novel.core.agent import NoraAgent
     from nora_novel.storage.wiki import Wiki
@@ -84,14 +85,11 @@ def main():
 
         if st.session_state.page == "wiki_manager":
             # 显示 Wiki 管理页面
-            wiki_manager = WikiManagerView()
-            wiki_manager.display()
+            # wiki_manager = WikiManagerView()
+            # wiki_manager.display()
+            simple_wiki_manager = SimpleWikiManager()
+            simple_wiki_manager.display()
 
-            with st.sidebar:
-                # 添加返回聊天页面的按钮
-                if st.button("返回聊天", key="back_to_chat", use_container_width=True):
-                    st.session_state.page = "chat"
-                    st.rerun()
         else:
             main_view(st.session_state.agent)
     elif st.session_state.get("authentication_status") is False:
