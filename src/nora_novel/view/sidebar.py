@@ -75,7 +75,7 @@ def _snapshot_manager_ui():
             if not name:
                 from datetime import datetime
 
-                name = datetime.now().strftime("%Y-%m-%d %H:%M")
+                name = datetime.now().strftime("%Y%m%d_%H%M%S")
 
             try:
                 filepath = snapshot_storage.save_snapshot(
