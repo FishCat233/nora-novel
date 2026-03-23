@@ -15,9 +15,12 @@ def main():
     from nora_novel.view import main_view
     from nora_novel.view.wiki_manager import WikiManagerView
     from nora_novel.view.wiki_manager_simple import SimpleWikiManager
+    from nora_novel.view.sidebar import show_load_confirmation
+    from nora_novel.view.chat_history import show_regenerate_confirmation
     from nora_novel.core.pipeline_tool import PIPELINE
     from nora_novel.core.agent import NoraAgent
     from nora_novel.storage.wiki import Wiki
+    from nora_novel.storage.snapshot import SnapshotStorage
 
     load_dotenv()
 
@@ -44,6 +47,9 @@ def main():
     if "wiki" not in st.session_state:
         st.session_state.wiki = Wiki.get_instance()
 
+    if "snapshot_storage" not in st.session_state:
+        st.session_state.snapshot_storage = SnapshotStorage.get_instance()
+
     if "pending_tool_call" not in st.session_state:
         st.session_state.pending_tool_call = []
 
@@ -57,6 +63,10 @@ def main():
     )
 
     logging.info(f"当前有 {len(st.session_state.pending_tool_call)} 个待处理的工具调用")
+
+    # 显示确认对话框（如果有）
+    show_load_confirmation()
+    show_regenerate_confirmation()
 
     ## ======== Page =======
 

@@ -12,6 +12,7 @@ from nora_novel.core.agent import (
 import nora_novel.utils as utils
 from nora_novel.core.types import ToolCallMessage
 from nora_novel.storage.wiki import Wiki
+from nora_novel.storage.snapshot import SnapshotStorage
 
 
 def chat_part(agent: NoraAgent):
@@ -235,6 +236,18 @@ def _handle_pending_tool_call(agent: NoraAgent):
 
 
 def chat_input_stream(agent: NoraAgent):
+    # 处理重新生成请求
+    if st.session_state.get("need_regenerate"):
+        st.session_state.need_regenerate = False
+        # 直接调用 Agent 生成新回复
+        stream = agent.step_stream()
+        chat_output_stream(agent, stream)
+
+        # 处理工具
+        if agent.pending_tool:
+            _handle_tool_call(agent, agent.pending_tool[0])
+        return
+
     # 当前有工具在处理，则先处理工具
     if agent.pending_tool:
         _handle_tool_call(agent, agent.pending_tool[0])
@@ -291,3 +304,16 @@ def chat_output_stream(
                     f"🔧 调用工具: {tc["function"]["name"]}", expanded=False
                 ):
                     st.markdown(f"*参数: {tc["function"]["arguments"]}*")
+
+    # 对话完成后自动保存
+    _auto_save_session(agent)
+
+
+def _auto_save_session(agent: NoraAgent):
+    """自动保存会话"""
+    try:
+        snapshot_storage: SnapshotStorage = st.session_state.snapshot_storage
+        snapshot_storage.auto_save(agent.messages)
+        logging.debug("自动保存会话完成")
+    except Exception as e:
+        logging.error(f"自动保存会话失败: {e}")
