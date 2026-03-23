@@ -11,8 +11,19 @@ from nora_novel.core.types import CommonChatMessage, ToolCallMessage, ChatMessag
 @dataclass
 class SnapshotInfo:
     """快照元数据"""
+
     filename: str
     name: str
+    timestamp: str
+    message_count: int
+    current_module_id: str
+
+
+@dataclass
+class AutoArchiveInfo:
+    """自动存档元数据"""
+
+    index: int
     timestamp: str
     message_count: int
     current_module_id: str
@@ -22,6 +33,8 @@ class SnapshotStorage:
     """会话快照存储管理类"""
 
     _instance: Optional["SnapshotStorage"] = None
+
+    MAX_AUTO_ARCHIVES = 10  # 最大自动存档数量
 
     def __init__(self, snapshot_path: Optional[str] = None):
         if SnapshotStorage._instance is not None:
@@ -33,7 +46,9 @@ class SnapshotStorage:
             snapshot_path = os.path.join(os.path.dirname(wiki_path), "snapshots")
 
         self.snapshot_path = os.path.abspath(snapshot_path)
+        self.auto_archive_path = os.path.join(self.snapshot_path, "auto_archives")
         self._ensure_directory_exists()
+        self._ensure_auto_archive_directory_exists()
 
         SnapshotStorage._instance = self
 
@@ -49,6 +64,12 @@ class SnapshotStorage:
         if not os.path.exists(self.snapshot_path):
             os.makedirs(self.snapshot_path, exist_ok=True)
             logging.info(f"创建快照目录: {self.snapshot_path}")
+
+    def _ensure_auto_archive_directory_exists(self):
+        """确保自动存档目录存在"""
+        if not os.path.exists(self.auto_archive_path):
+            os.makedirs(self.auto_archive_path, exist_ok=True)
+            logging.info(f"创建自动存档目录: {self.auto_archive_path}")
 
     def _serialize_message(self, message: ChatMessage) -> dict:
         """将消息序列化为字典"""
@@ -222,8 +243,7 @@ class SnapshotStorage:
         chat_messages = [
             msg
             for msg in messages
-            if isinstance(msg, CommonChatMessage)
-            and msg.role in ["user", "assistant"]
+            if isinstance(msg, CommonChatMessage) and msg.role in ["user", "assistant"]
         ]
 
         # 只保留最近10条
@@ -275,3 +295,146 @@ class SnapshotStorage:
         filepath = os.path.join(self.snapshot_path, ".auto_save.json")
         if os.path.exists(filepath):
             os.remove(filepath)
+
+    def _get_auto_archive_filepath(self, index: int) -> str:
+        """获取自动存档文件路径"""
+        return os.path.join(self.auto_archive_path, f"auto_archive_{index}.json")
+
+    def _rotate_auto_archives(self):
+        """
+        轮转自动存档文件
+        删除 index 0，将 0-8 依次后移为 1-9
+        """
+        # 删除最旧的存档 (index 0)
+        oldest_path = self._get_auto_archive_filepath(0)
+        if os.path.exists(oldest_path):
+            try:
+                os.remove(oldest_path)
+                logging.debug(f"删除最旧自动存档: {oldest_path}")
+            except Exception as e:
+                logging.error(f"删除旧自动存档失败: {e}")
+
+        # 将 0-8 后移为 1-9
+        for i in range(self.MAX_AUTO_ARCHIVES - 2, -1, -1):  # 从 8 到 0
+            src_path = self._get_auto_archive_filepath(i)
+            dst_path = self._get_auto_archive_filepath(i + 1)
+            if os.path.exists(src_path):
+                try:
+                    os.rename(src_path, dst_path)
+                    logging.debug(f"重命名自动存档: {i} -> {i + 1}")
+                except Exception as e:
+                    logging.error(f"重命名自动存档失败 {i}->{i+1}: {e}")
+
+    def save_auto_archive(
+        self,
+        messages: list[ChatMessage],
+        current_module_id: str,
+    ) -> str:
+        """
+        保存自动存档
+
+        Args:
+            messages: 消息历史列表
+            current_module_id: 当前模块ID
+
+        Returns:
+            保存的文件路径
+        """
+        # 检查是否需要轮转（index 9 已存在）
+        latest_path = self._get_auto_archive_filepath(self.MAX_AUTO_ARCHIVES - 1)
+        if os.path.exists(latest_path):
+            self._rotate_auto_archives()
+
+        # 过滤出用户和助手消息（排除系统消息和工具消息）
+        chat_messages = [
+            msg
+            for msg in messages
+            if isinstance(msg, CommonChatMessage) and msg.role in ["user", "assistant"]
+        ]
+
+        # 序列化消息
+        serialized_messages = [self._serialize_message(msg) for msg in chat_messages]
+
+        archive_data = {
+            "version": "1.0",
+            "timestamp": datetime.now().isoformat(),
+            "index": self.MAX_AUTO_ARCHIVES - 1,  # 最新存档固定为 index 9
+            "current_module_id": current_module_id,
+            "messages": serialized_messages,
+            "message_count": len(chat_messages),
+        }
+
+        filepath = self._get_auto_archive_filepath(self.MAX_AUTO_ARCHIVES - 1)
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(archive_data, f, ensure_ascii=False, indent=2)
+
+        logging.info(f"保存自动存档: {filepath}")
+        return filepath
+
+    def list_auto_archives(self) -> list[AutoArchiveInfo]:
+        """
+        列出所有自动存档
+
+        Returns:
+            自动存档信息列表，按 index 倒序排列（最新的在前）
+        """
+        archives = []
+
+        if not os.path.exists(self.auto_archive_path):
+            return archives
+
+        for filename in os.listdir(self.auto_archive_path):
+            if not filename.startswith("auto_archive_") or not filename.endswith(
+                ".json"
+            ):
+                continue
+
+            # 解析 index
+            try:
+                index = int(filename.replace("auto_archive_", "").replace(".json", ""))
+            except ValueError:
+                continue
+
+            filepath = os.path.join(self.auto_archive_path, filename)
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+
+                archives.append(
+                    AutoArchiveInfo(
+                        index=index,
+                        timestamp=data.get("timestamp", ""),
+                        message_count=data.get("message_count", 0),
+                        current_module_id=data.get("current_module_id", ""),
+                    )
+                )
+            except Exception as e:
+                logging.warning(f"读取自动存档文件失败 {filename}: {e}")
+
+        # 按 index 倒序排列（最新的在前）
+        archives.sort(key=lambda x: x.index, reverse=True)
+        return archives
+
+    def load_auto_archive(self, index: int) -> dict:
+        """
+        加载自动存档
+
+        Args:
+            index: 存档索引 (0-9)
+
+        Returns:
+            存档数据字典
+        """
+        filepath = self._get_auto_archive_filepath(index)
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # 反序列化消息
+        if "messages" in data:
+            data["messages"] = [
+                self._deserialize_message(msg) for msg in data["messages"]
+            ]
+
+        logging.info(f"加载自动存档: index={index}")
+        return data

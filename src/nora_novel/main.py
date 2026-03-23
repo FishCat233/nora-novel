@@ -15,7 +15,10 @@ def main():
     from nora_novel.view import main_view
     from nora_novel.view.wiki_manager import WikiManagerView
     from nora_novel.view.wiki_manager_simple import SimpleWikiManager
-    from nora_novel.view.sidebar import show_load_confirmation
+    from nora_novel.view.sidebar import (
+        show_load_confirmation,
+        show_auto_archive_load_confirmation,
+    )
     from nora_novel.view.chat_history import show_regenerate_confirmation
     from nora_novel.core.pipeline_tool import PIPELINE
     from nora_novel.core.agent import NoraAgent
@@ -66,6 +69,7 @@ def main():
 
     # 显示确认对话框（如果有）
     show_load_confirmation()
+    show_auto_archive_load_confirmation()
     show_regenerate_confirmation()
 
     ## ======== Page =======

@@ -2,7 +2,7 @@ import streamlit as st
 
 from nora_novel.core.pipeline_tool import PIPELINE
 from nora_novel.core.types import CommonChatMessage
-from nora_novel.storage.snapshot import SnapshotStorage
+from nora_novel.storage.snapshot import SnapshotStorage, AutoArchiveInfo
 
 
 def main_sidebar():
@@ -95,7 +95,6 @@ def _snapshot_manager_ui():
 
         if not snapshots:
             st.info("暂无存档")
-            return
 
         for snapshot in snapshots:
             with st.container():
@@ -131,6 +130,9 @@ def _snapshot_manager_ui():
 
     except Exception as e:
         st.error(f"读取存档列表失败: {e}")
+
+    # 自动存档区域（默认折叠）
+    _auto_archive_manager_ui()
 
 
 def _handle_load_snapshot(filename: str):
@@ -223,3 +225,127 @@ def _execute_load_snapshot(filename: str):
 
     except Exception as e:
         st.error(f"❌ 加载存档失败: {e}")
+
+
+def _auto_archive_manager_ui():
+    """自动存档管理 UI（默认折叠）"""
+    snapshot_storage: SnapshotStorage = st.session_state.snapshot_storage
+
+    try:
+        archives = snapshot_storage.list_auto_archives()
+        archive_count = len(archives)
+
+        # 使用折叠区域，默认折叠
+        with st.expander(f"🕐 自动存档 ({archive_count})", expanded=False):
+            if not archives:
+                st.info("暂无自动存档")
+                return
+
+            for archive in archives:
+                with st.container():
+                    # 格式化时间显示
+                    try:
+                        dt = archive.timestamp.replace("T", " ").split(".")[0]
+                    except:
+                        dt = archive.timestamp
+
+                    # 显示序号（index + 1，让用户看到 1-10 而不是 0-9）
+                    display_num = archive.index + 1
+
+                    st.markdown(f"**#{display_num}**  {dt}")
+                    st.caption(f"{archive.message_count} 条消息")
+
+                    # 加载按钮
+                    if st.button(
+                        "📂 加载",
+                        key=f"load_auto_archive_{archive.index}",
+                        use_container_width=True,
+                    ):
+                        _handle_load_auto_archive(archive.index)
+
+                st.divider()
+
+    except Exception as e:
+        st.error(f"读取自动存档列表失败: {e}")
+
+
+def _handle_load_auto_archive(index: int):
+    """处理加载自动存档"""
+    # 显示确认对话框
+    st.session_state.load_auto_archive_confirm = index
+    st.rerun()
+
+
+def show_auto_archive_load_confirmation():
+    """显示加载自动存档确认对话框"""
+    if "load_auto_archive_confirm" not in st.session_state:
+        return False
+
+    index = st.session_state.load_auto_archive_confirm
+    display_num = index + 1
+
+    # 使用对话框显示确认
+    @st.dialog("确认加载自动存档")
+    def confirm_dialog():
+        st.warning("⚠️ 加载自动存档将替换当前会话，未保存的对话将丢失！")
+        st.info(f"要加载的自动存档: **#{display_num}**")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ 确认加载", use_container_width=True, type="primary"):
+                _execute_load_auto_archive(index)
+                del st.session_state.load_auto_archive_confirm
+                st.rerun()
+
+        with col2:
+            if st.button("❌ 取消", use_container_width=True):
+                del st.session_state.load_auto_archive_confirm
+                st.rerun()
+
+    confirm_dialog()
+    return True
+
+
+def _execute_load_auto_archive(index: int):
+    """执行加载自动存档操作"""
+    snapshot_storage: SnapshotStorage = st.session_state.snapshot_storage
+
+    try:
+        data = snapshot_storage.load_auto_archive(index)
+
+        # 恢复会话状态
+        st.session_state.current_module_id = data.get(
+            "current_module_id", "common_helper"
+        )
+
+        # 恢复 Agent 状态
+        from nora_novel.core.pipeline_tool import PIPELINE
+        from nora_novel.core.agent import NoraAgent
+        from openai import OpenAI
+        import os
+
+        # 重新创建 Agent
+        client = OpenAI(
+            api_key=os.getenv("SILICONFLOW_API_KEY"),
+            base_url="https://api.siliconflow.cn/v1",
+        )
+
+        current_module = PIPELINE.get(
+            st.session_state.current_module_id, PIPELINE["common_helper"]
+        )
+
+        st.session_state.agent = NoraAgent(
+            client, system_prompt=current_module.system_prompt
+        ).setup_pipeline(current_module)
+
+        # 恢复消息历史
+        messages = data.get("messages", [])
+        st.session_state.agent.messages = messages
+
+        # 清除待处理工具调用
+        st.session_state.pending_tool_call = []
+
+        st.success(f"✅ 自动存档已加载: #{index + 1}")
+
+    except Exception as e:
+        st.error(f"❌ 加载自动存档失败: {e}")
