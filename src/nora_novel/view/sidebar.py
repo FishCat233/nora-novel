@@ -67,23 +67,25 @@ def _snapshot_manager_ui():
     # 保存当前会话
     with st.expander("💾 保存当前会话", expanded=False):
         snapshot_name = st.text_input(
-            "存档名称",
-            placeholder="输入存档名称...",
-            key="snapshot_name_input"
+            "存档名称", placeholder="输入存档名称...", key="snapshot_name_input"
         )
         if st.button("保存存档", use_container_width=True, key="save_snapshot_btn"):
-            if snapshot_name.strip():
-                try:
-                    filepath = snapshot_storage.save_snapshot(
-                        name=snapshot_name.strip(),
-                        messages=st.session_state.agent.messages,
-                        current_module_id=st.session_state.current_module_id,
-                    )
-                    st.success(f"✅ 存档已保存: {snapshot_name}")
-                except Exception as e:
-                    st.error(f"❌ 保存失败: {e}")
-            else:
-                st.warning("请输入存档名称")
+            # 如果名称为空，使用当前时间作为默认名称
+            name = snapshot_name.strip()
+            if not name:
+                from datetime import datetime
+
+                name = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+            try:
+                filepath = snapshot_storage.save_snapshot(
+                    name=name,
+                    messages=st.session_state.agent.messages,
+                    current_module_id=st.session_state.current_module_id,
+                )
+                st.success(f"✅ 存档已保存: {name}")
+            except Exception as e:
+                st.error(f"❌ 保存失败: {e}")
 
     # 显示已保存的存档列表
     st.subheader("已保存的存档")
@@ -186,7 +188,9 @@ def _execute_load_snapshot(filename: str):
         data = snapshot_storage.load_snapshot(filename)
 
         # 恢复会话状态
-        st.session_state.current_module_id = data.get("current_module_id", "common_helper")
+        st.session_state.current_module_id = data.get(
+            "current_module_id", "common_helper"
+        )
 
         # 恢复 Agent 状态
         from nora_novel.core.pipeline_tool import PIPELINE
@@ -201,13 +205,11 @@ def _execute_load_snapshot(filename: str):
         )
 
         current_module = PIPELINE.get(
-            st.session_state.current_module_id,
-            PIPELINE["common_helper"]
+            st.session_state.current_module_id, PIPELINE["common_helper"]
         )
 
         st.session_state.agent = NoraAgent(
-            client,
-            system_prompt=current_module.system_prompt
+            client, system_prompt=current_module.system_prompt
         ).setup_pipeline(current_module)
 
         # 恢复消息历史
