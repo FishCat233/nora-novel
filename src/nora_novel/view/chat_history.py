@@ -38,10 +38,7 @@ def chat_user(content: str):
 
 
 def chat_assistant(
-    thought: str,
-    response: str,
-    call_infos: list[(str, str)],
-    message_idx: int = None
+    thought: str, response: str, call_infos: list[(str, str)], message_idx: int = None
 ):
     """
     显示助手消息，包括思考部分和回答部分。
@@ -55,10 +52,6 @@ def chat_assistant(
     """
 
     with st.chat_message("assistant"):
-        # 重新生成按钮（放在右上角）
-        if message_idx is not None:
-            _show_regenerate_button(message_idx)
-
         if thought:
             with st.expander("🤔 已浅度思考不知道多少秒", expanded=False):
                 st.markdown(thought)
@@ -73,6 +66,10 @@ def chat_assistant(
                     expanded=False,
                 ):
                     st.markdown(f"*参数: {arg}*")
+
+        # 重新生成按钮（放在右上角）
+        if message_idx is not None:
+            _show_regenerate_button(message_idx)
 
 
 def _show_regenerate_button(message_idx: int):
@@ -98,16 +95,14 @@ def show_regenerate_confirmation():
 
     @st.dialog("确认重新生成")
     def confirm_dialog():
-        st.warning("⚠️ 重新生成将删除此回复及之后的所有消息，并基于之前的上下文重新生成。")
+        st.warning(
+            "⚠️ 重新生成将删除此回复及之后的所有消息，并基于之前的上下文重新生成。"
+        )
         st.info(f"要重新生成的消息索引: **{message_idx}**")
 
         col1, col2 = st.columns(2)
         with col1:
-            if st.button(
-                "✅ 确认重新生成",
-                use_container_width=True,
-                type="primary"
-            ):
+            if st.button("✅ 确认重新生成", use_container_width=True, type="primary"):
                 _execute_regenerate(message_idx)
                 del st.session_state.regenerate_idx
                 st.rerun()
