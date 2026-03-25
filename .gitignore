@@ -10,3 +10,4 @@ auth_config.yaml
 build/
 nora-novel_*.tar
 snapshots/
+.trae/
