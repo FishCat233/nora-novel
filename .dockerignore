@@ -29,6 +29,7 @@ env/
 # IDE
 .vscode/
 .idea/
+.trae/
 *.swp
 *.swo
 *~
@@ -61,5 +62,15 @@ docs/
 *.md
 !README.md
 
+# Scripts
+run.cmd
+build.py
+AGENT.md
+
+# Project specific
+.python-version
+snapshots/
+
 # Streamlit
 .streamlit/
+
