@@ -232,37 +232,6 @@ class SnapshotStorage:
             logging.error(f"删除快照失败 {filename}: {e}")
             return False
 
-    def auto_save(self, messages: list[ChatMessage]):
-        """
-        自动保存最近10条对话
-
-        Args:
-            messages: 消息历史列表
-        """
-        # 过滤出用户和助手消息（排除系统消息和工具消息）
-        chat_messages = [
-            msg
-            for msg in messages
-            if isinstance(msg, CommonChatMessage) and msg.role in ["user", "assistant"]
-        ]
-
-        # 只保留最近10条
-        recent_messages = chat_messages[-10:]
-
-        # 序列化
-        serialized_messages = [self._serialize_message(msg) for msg in recent_messages]
-
-        auto_save_data = {
-            "version": "1.0",
-            "timestamp": datetime.now().isoformat(),
-            "messages": serialized_messages,
-            "message_count": len(recent_messages),
-        }
-
-        filepath = os.path.join(self.snapshot_path, ".auto_save.json")
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(auto_save_data, f, ensure_ascii=False, indent=2)
-
     def get_auto_save(self) -> Optional[dict]:
         """
         获取自动保存的对话历史
@@ -303,10 +272,10 @@ class SnapshotStorage:
     def _rotate_auto_archives(self):
         """
         轮转自动存档文件
-        删除 index 0，将 0-8 依次后移为 1-9
+        删除 index 9，将 0-8 依次后移为 1-9
         """
         # 删除最旧的存档 (index 0)
-        oldest_path = self._get_auto_archive_filepath(0)
+        oldest_path = self._get_auto_archive_filepath(9)
         if os.path.exists(oldest_path):
             try:
                 os.remove(oldest_path)
@@ -314,7 +283,7 @@ class SnapshotStorage:
             except Exception as e:
                 logging.error(f"删除旧自动存档失败: {e}")
 
-        # 将 0-8 后移为 1-9
+        # 将 0-8 后移为 1-9（从后往前移动，避免覆盖）
         for i in range(self.MAX_AUTO_ARCHIVES - 2, -1, -1):  # 从 8 到 0
             src_path = self._get_auto_archive_filepath(i)
             dst_path = self._get_auto_archive_filepath(i + 1)
@@ -341,30 +310,23 @@ class SnapshotStorage:
             保存的文件路径
         """
         # 检查是否需要轮转（index 9 已存在）
-        latest_path = self._get_auto_archive_filepath(self.MAX_AUTO_ARCHIVES - 1)
+        latest_path = self._get_auto_archive_filepath(0)
         if os.path.exists(latest_path):
             self._rotate_auto_archives()
 
-        # 过滤出用户和助手消息（排除系统消息和工具消息）
-        chat_messages = [
-            msg
-            for msg in messages
-            if isinstance(msg, CommonChatMessage) and msg.role in ["user", "assistant"]
-        ]
-
         # 序列化消息
-        serialized_messages = [self._serialize_message(msg) for msg in chat_messages]
+        serialized_messages = [self._serialize_message(msg) for msg in messages]
 
         archive_data = {
             "version": "1.0",
             "timestamp": datetime.now().isoformat(),
-            "index": self.MAX_AUTO_ARCHIVES - 1,  # 最新存档固定为 index 9
+            "index": 0,  # 最新存档固定为 index 0
             "current_module_id": current_module_id,
             "messages": serialized_messages,
-            "message_count": len(chat_messages),
+            "message_count": len(messages),
         }
 
-        filepath = self._get_auto_archive_filepath(self.MAX_AUTO_ARCHIVES - 1)
+        filepath = self._get_auto_archive_filepath(0)
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(archive_data, f, ensure_ascii=False, indent=2)
 

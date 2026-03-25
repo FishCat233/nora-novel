@@ -317,6 +317,9 @@ def chat_output_stream(
     # 流式输出结束后，触发自动存档
     _trigger_auto_archive(agent)
 
+    # 刷新 UI 确保最终状态正确显示
+    st.rerun()
+
 
 def _trigger_auto_archive(agent: NoraAgent):
     """
