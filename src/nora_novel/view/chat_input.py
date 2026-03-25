@@ -12,6 +12,7 @@ from nora_novel.core.agent import (
 import nora_novel.utils as utils
 from nora_novel.core.types import ToolCallMessage
 from nora_novel.storage.wiki import Wiki
+from nora_novel.storage.snapshot import SnapshotStorage
 
 
 def chat_part(agent: NoraAgent):
@@ -235,6 +236,18 @@ def _handle_pending_tool_call(agent: NoraAgent):
 
 
 def chat_input_stream(agent: NoraAgent):
+    # 处理重新生成请求
+    if st.session_state.get("need_regenerate"):
+        st.session_state.need_regenerate = False
+        # 直接调用 Agent 生成新回复
+        stream = agent.step_stream()
+        chat_output_stream(agent, stream)
+
+        # 处理工具
+        if agent.pending_tool:
+            _handle_tool_call(agent, agent.pending_tool[0])
+        return
+
     # 当前有工具在处理，则先处理工具
     if agent.pending_tool:
         _handle_tool_call(agent, agent.pending_tool[0])
@@ -257,37 +270,71 @@ def chat_output_stream(
     agent: NoraAgent,
     stream: Generator[StreamContentEvent | StreamFinalEvent, Any, None],
 ):
+    """流式输出处理函数"""
     with st.chat_message("assistant"):
+        # 创建占位符
         thought_placeholder = st.empty()
         answer_placeholder = st.empty()
+        tool_placeholder = st.empty()
 
-        answer_buffer = ""
-        tool_calls: list[ToolCallJson] = []
+        # 用于收集内容的缓冲区
+        content_buffer = ""
+        tool_calls_buffer = []
 
-        # 解析流
+        # 实时流式显示
         for event in stream:
             if isinstance(event, StreamContentEvent):
-                answer_buffer += event.data
-                answer_placeholder.markdown(answer_buffer)
+                # 累积内容
+                content_buffer += event.data
+
+                # 实时解析并显示（分离思考部分和回答部分）
+                thought, answer = utils.split_thought_response(content_buffer)
+
+                # 显示思考部分（如果有）
+                if thought:
+                    thought_placeholder.expander(
+                        "🤔 已浅度思考不知道多少秒", expanded=False
+                    ).markdown(thought)
+
+                # 实时显示回答部分
+                if answer:
+                    answer_placeholder.markdown(answer)
+
             elif isinstance(event, StreamFinalEvent):
-                tool_calls = event.data.tool_calls
+                # 收集工具调用
+                if event.data.tool_calls:
+                    tool_calls_buffer = event.data.tool_calls
 
-        # 结束回答后，解析思考和回答部分
-        thought, answer = utils.split_thought_response(answer_buffer)
-        if thought:
-            thought_placeholder.expander(
-                "🤔 已浅度思考不知道多少秒", expanded=False
-            ).markdown(thought)
-        if answer:
-            answer_placeholder.markdown(answer)
-        else:
-            answer_placeholder.empty()
+        # 流结束后，最终显示工具调用
+        if tool_calls_buffer:
+            with tool_placeholder.container():
+                for tc in tool_calls_buffer:
+                    with st.expander(
+                        f"🔧 调用工具: {tc["function"]["name"]}", expanded=False
+                    ):
+                        st.markdown(f"*参数: {tc["function"]["arguments"]}*")
 
-        # 解析工具调用
-        if tool_calls:
-            # 显示工具
-            for tc in tool_calls:
-                with st.expander(
-                    f"🔧 调用工具: {tc["function"]["name"]}", expanded=False
-                ):
-                    st.markdown(f"*参数: {tc["function"]["arguments"]}*")
+    # 流式输出结束后，触发自动存档
+    _trigger_auto_archive(agent)
+
+    # 刷新 UI 确保最终状态正确显示
+    st.rerun()
+
+
+def _trigger_auto_archive(agent: NoraAgent):
+    """
+    触发自动存档
+    在每次对话完成后自动保存会话状态
+    """
+    try:
+        snapshot_storage = SnapshotStorage.get_instance()
+        current_module_id = st.session_state.get("current_module_id", "common_helper")
+
+        # 保存自动存档
+        snapshot_storage.save_auto_archive(
+            messages=agent.messages,
+            current_module_id=current_module_id,
+        )
+        logging.debug("自动存档已保存")
+    except Exception as e:
+        logging.error(f"自动存档失败: {e}")
